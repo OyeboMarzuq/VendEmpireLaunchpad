@@ -1,6 +1,8 @@
 import { useSession } from "@tanstack/react-start/server";
 import { createHash, timingSafeEqual } from "node:crypto";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import type { MarketplaceDatabase } from "@/integrations/supabase/marketplace-database";
 
 export type AdminSession = { unlocked?: boolean };
 
@@ -29,8 +31,7 @@ export function passwordMatches(input: string, expected: string): boolean {
 }
 
 export function adminClient() {
-  // Generated service-role client — handles the managed key format correctly.
-  return supabaseAdmin;
+  return supabaseAdmin as unknown as SupabaseClient<MarketplaceDatabase>;
 }
 
 export async function isUnlocked() {

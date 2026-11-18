@@ -11,34 +11,81 @@ import {
   type Entry,
 } from "./waitlist.server";
 
-const joinSchema = z.object({
-  name: z.string().trim().min(2).max(100),
-  email: z.string().trim().email().max(200),
-  phone: z.string().trim().max(40).optional().or(z.literal("")),
-  role: z.enum(["vendor", "customer"]),
-  whatTheySell: z.string().trim().max(200).optional().or(z.literal("")),
+const optionalText = (max: number) =>
+  z
+    .string()
+    .trim()
+    .max(max)
+    .nullable()
+    .optional()
+    .transform((value) => value || null);
+
+const customerJoinSchema = z.object({
+  full_name: z.string().trim().min(2).max(100),
+  email: z.string().trim().email().max(255),
+  phone: optionalText(30),
+  city: optionalText(80),
+  country: z.string().trim().min(2).max(80),
+  persona: z.enum(["homemaker", "student", "professional", "everyday"]),
+  interests: z.array(z.string().trim().min(1).max(80)).min(1).max(10),
+  note: optionalText(300),
 });
 
-export const joinWaitlist = createServerFn({ method: "POST" })
-  .inputValidator((data: unknown) => joinSchema.parse(data))
+const vendorJoinSchema = z.object({
+  business_name: z.string().trim().min(2).max(120),
+  full_name: z.string().trim().min(2).max(100),
+  email: z.string().trim().email().max(255),
+  phone: optionalText(30),
+  city: optionalText(80),
+  country: z.string().trim().min(2).max(80),
+  persona: z.enum(["market", "shop", "home", "farmer"]),
+  interests: z.array(z.string().trim().min(1).max(80)).min(1).max(10),
+  note: optionalText(300),
+});
+
+export const joinCustomerWaitlist = createServerFn({ method: "POST" })
+  .inputValidator((data: unknown) => customerJoinSchema.parse(data))
   .handler(async ({ data }) => {
     const supabase = adminClient();
-    const { error } = await supabase.from("waitlist_entries").insert({
-      name: data.name,
+    const { error } = await supabase.from("customer_waitlist").insert({
+      ...data,
       email: data.email.toLowerCase(),
-      phone: data.phone ? data.phone : null,
-      role: data.role,
-      what_they_sell: data.role === "vendor" && data.whatTheySell ? data.whatTheySell : null,
     });
 
     if (error && error.code !== "23505") {
-      console.error("[Waitlist] Signup insert failed", { code: error.code });
+      console.error("[Waitlist] Customer signup insert failed", { code: error.code });
       return { ok: false as const, reason: "database" as const, position: 0 };
     }
 
-    const { count } = await supabase
-      .from("waitlist_entries")
+    const { count, error: countError } = await supabase
+      .from("customer_waitlist")
       .select("id", { count: "exact", head: true });
+    if (countError) throw countError;
+
+    if (error) {
+      return { ok: true as const, reason: "duplicate" as const, position: count ?? 0 };
+    }
+    return { ok: true as const, reason: "created" as const, position: count ?? 0 };
+  });
+
+export const joinVendorWaitlist = createServerFn({ method: "POST" })
+  .inputValidator((data: unknown) => vendorJoinSchema.parse(data))
+  .handler(async ({ data }) => {
+    const supabase = adminClient();
+    const { error } = await supabase.from("vendor_waitlist").insert({
+      ...data,
+      email: data.email.toLowerCase(),
+    });
+
+    if (error && error.code !== "23505") {
+      console.error("[Waitlist] Vendor signup insert failed", { code: error.code });
+      return { ok: false as const, reason: "database" as const, position: 0 };
+    }
+
+    const { count, error: countError } = await supabase
+      .from("vendor_waitlist")
+      .select("id", { count: "exact", head: true });
+    if (countError) throw countError;
 
     if (error) {
       return { ok: true as const, reason: "duplicate" as const, position: count ?? 0 };
@@ -48,10 +95,15 @@ export const joinWaitlist = createServerFn({ method: "POST" })
 
 export const getWaitlistCount = createServerFn({ method: "GET" }).handler(async () => {
   const supabase = adminClient();
-  const { count } = await supabase
-    .from("waitlist_entries")
-    .select("id", { count: "exact", head: true });
-  return { count: count ?? 0 };
+  const [customersResult, vendorsResult] = await Promise.all([
+    supabase.from("customer_waitlist").select("id", { count: "exact", head: true }),
+    supabase.from("vendor_waitlist").select("id", { count: "exact", head: true }),
+  ]);
+  if (customersResult.error) throw customersResult.error;
+  if (vendorsResult.error) throw vendorsResult.error;
+  const customers = customersResult.count ?? 0;
+  const vendors = vendorsResult.count ?? 0;
+  return { count: customers + vendors, customers, vendors };
 });
 
 export const adminUnlock = createServerFn({ method: "POST" })
@@ -80,22 +132,42 @@ export const getAdminData = createServerFn({ method: "GET" }).handler(async () =
     return { locked: true as const };
   }
   const supabase = adminClient();
-  const { data, error } = await supabase
-    .from("waitlist_entries")
-    .select("id,name,email,phone,role,what_they_sell,created_at")
-    .order("created_at", { ascending: false });
+  const [customersResult, vendorsResult] = await Promise.all([
+    supabase.from("customer_waitlist").select("*").order("created_at", { ascending: false }),
+    supabase.from("vendor_waitlist").select("*").order("created_at", { ascending: false }),
+  ]);
 
-  if (error) {
+  if (customersResult.error || vendorsResult.error) {
+    const error = customersResult.error ?? vendorsResult.error;
     console.error("[Admin] Waitlist query failed", {
-      code: error.code || "unknown",
-      message: error.message,
+      code: error?.code || "unknown",
+      message: error?.message,
     });
     return {
       locked: false as const,
-      errorCode: error.code || "unknown",
-      errorMessage: error.message,
+      errorCode: error?.code || "unknown",
+      errorMessage: error?.message || "Unknown waitlist query error",
     };
   }
-  const entries = (data ?? []) as Entry[];
+  const entries: Entry[] = [
+    ...(customersResult.data ?? []).map((entry) => ({
+      id: entry.id,
+      name: entry.full_name,
+      email: entry.email,
+      phone: entry.phone,
+      role: "customer",
+      what_they_sell: entry.interests.join(", ") || entry.note,
+      created_at: entry.created_at,
+    })),
+    ...(vendorsResult.data ?? []).map((entry) => ({
+      id: entry.id,
+      name: entry.business_name ?? entry.full_name,
+      email: entry.email,
+      phone: entry.phone,
+      role: "vendor",
+      what_they_sell: entry.interests.join(", ") || entry.note,
+      created_at: entry.created_at,
+    })),
+  ].sort((a, b) => b.created_at.localeCompare(a.created_at));
   return { locked: false as const, entries, stats: buildStats(entries) };
 });
