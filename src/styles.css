@@ -178,3 +178,102 @@
 @utility shadow-soft {
   box-shadow: 0 20px 45px -25px color-mix(in oklab, var(--brand) 45%, transparent);
 }
+
+:root {
+  --gradient-hero: linear-gradient(135deg, var(--brand-deep), var(--brand) 58%, var(--brand-soft));
+  --vip-card-start: oklch(0.2 0.06 155);
+  --vip-card-end: oklch(0.29 0.08 160);
+  --vip-gold-start: oklch(0.9 0.13 90);
+  --vip-gold-end: oklch(0.72 0.16 76);
+  --vip-gold-muted: oklch(0.84 0.12 91);
+  --vip-card-muted: oklch(0.84 0.025 150);
+  --shadow-glow: 0 18px 55px -18px color-mix(in oklab, var(--brand) 55%, transparent);
+}
+
+.dark {
+  --shadow-glow: 0 18px 55px -18px color-mix(in oklab, var(--brand) 65%, transparent);
+}
+
+@utility text-gradient {
+  background-image: linear-gradient(120deg, var(--brand-deep), var(--brand), var(--brand-soft));
+  background-clip: text;
+  color: transparent;
+}
+
+@utility glass {
+  border: 1px solid color-mix(in oklab, var(--border) 75%, transparent);
+  background: color-mix(in oklab, var(--card) 82%, transparent);
+  backdrop-filter: blur(18px);
+}
+
+@utility shadow-glow {
+  box-shadow: var(--shadow-glow);
+}
+
+@keyframes vend-float {
+  0%, 100% { transform: translateY(0) rotate(var(--r, 0deg)); }
+  50% { transform: translateY(-14px) rotate(var(--r, 0deg)); }
+}
+
+@utility animate-float {
+  animation: vend-float 4s ease-in-out infinite;
+}
+
+@keyframes vend-rise {
+  from { opacity: 0; transform: translateY(18px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@utility animate-rise {
+  animation: vend-rise 650ms ease-out both;
+}
+
+@keyframes vend-marquee {
+  to { transform: translateX(-50%); }
+}
+
+@utility animate-marquee {
+  animation: vend-marquee 28s linear infinite;
+}
+
+@keyframes vend-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+@utility animate-shimmer {
+  background-size: 200% 100%;
+  animation: vend-shimmer 4s linear infinite;
+}
+
+@keyframes vend-confetti {
+  0% { opacity: 1; transform: translate(-50%, 0) rotate(0deg); }
+  100% { opacity: 0; transform: translate(calc(-50% + var(--x)), var(--y)) rotate(540deg); }
+}
+
+@utility animate-confetti {
+  animation: vend-confetti 1.8s ease-out both;
+}
+
+.vip-pass-card {
+  border-color: color-mix(in oklab, var(--vip-gold-muted) 45%, var(--border));
+  background: linear-gradient(135deg, var(--vip-card-start), var(--vip-card-end));
+  color: var(--vip-gold-start);
+}
+
+.vip-pass-pattern {
+  background-image:
+    radial-gradient(circle at 85% 45%, color-mix(in oklab, var(--vip-gold-start) 8%, transparent) 0 110px, transparent 112px),
+    repeating-linear-gradient(35deg, color-mix(in oklab, var(--vip-gold-start) 7%, transparent) 0 2px, transparent 2px 38px);
+}
+
+.vip-pass-brand,
+.vip-pass-brand-text,
+.vip-pass-seal {
+  color: var(--vip-gold-start);
+}
+
+.vip-pass-seal {
+  border-color: color-mix(in oklab, var(--vip-gold-start) 55%, transparent);
+  background: color-mix(in oklab, var(--vip-card-start) 80%, var(--vip-gold-start));
+}
